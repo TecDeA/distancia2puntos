@@ -4,7 +4,7 @@
 /* Versión de la app — única fuente de verdad para el chip de versión de index.html.
  * Al actualizarla cambia también el nombre de caché, forzando la renovación
  * del app shell en los clientes. */
-const APP_VERSION = '2.0.3';
+const APP_VERSION = '2.0.4';
 
 const CACHE_NAME = 'distmc-' + APP_VERSION;
 
@@ -21,10 +21,15 @@ const FONT_URLS = [
   'https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,300&display=swap'
 ];
 
-/* ── Install: pre-cache app shell ──────────────────────── */
+/* ── Install: pre-cache app shell (tolerante a fallos puntuales) ──
+ * cache.addAll() es atómico: si un recurso falla (p. ej. un icono 404),
+ * la instalación entera del SW se rechaza y el SW nunca se activa.
+ * Cachear recurso a recurso evita que un ausente rompa todo. */
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME)
+      .then((cache) => Promise.allSettled(APP_SHELL.map((url) => cache.add(url))))
+      .then(() => self.skipWaiting())
   );
 });
 
