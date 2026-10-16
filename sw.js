@@ -4,7 +4,7 @@
 /* Versión de la app — única fuente de verdad para el chip de versión de index.html.
  * Al actualizarla cambia también el nombre de caché, forzando la renovación
  * del app shell en los clientes. */
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.0.3';
 
 const CACHE_NAME = 'distmc-' + APP_VERSION;
 
