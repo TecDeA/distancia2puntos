@@ -90,6 +90,7 @@
     transition: background .3s;
   }
   .version-chip.ready .v-dot { background: var(--green); }
+  .version-chip.unavailable .v-dot { background: var(--sector); }
   header .subtitle {
     font-size: .7rem;
     color: #888;
@@ -1443,18 +1444,25 @@ function exportPDF() {
    ═════════════════════════════════════════════════════ */
 const versionChip = document.getElementById('versionChip');
 const versionText = document.getElementById('versionText');
-let versionSettled = false;
+let versionGot = false;
 
 function setAppVersion(v) {
-  if (versionSettled) return;
-  versionSettled = true;
+  versionGot = true;
   versionText.textContent = 'v' + v;
   versionChip.classList.add('ready');
+  versionChip.classList.remove('unavailable');
   versionChip.title = 'Versión de la aplicación (Service Worker): v' + v;
 }
 
 function askAppVersion(sw) {
   if (sw) { try { sw.postMessage({ type: 'GET_VERSION' }); } catch (e) { /* noop */ } }
+}
+
+function askAllWorkers() {
+  askAppVersion(navigator.serviceWorker.controller);
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(reg => askAppVersion(reg.active));
+  }).catch(() => {});
 }
 
 if ('serviceWorker' in navigator) {
@@ -1469,26 +1477,31 @@ if ('serviceWorker' in navigator) {
       .catch(err => console.error('Error SW:', err));
   });
 
-  // Si ya hay un SW controlando la página, pídele la versión directamente
-  if (navigator.serviceWorker.controller) askAppVersion(navigator.serviceWorker.controller);
-
-  // En cuanto el SW esté activo (primera visita), solicítale la versión
-  navigator.serviceWorker.ready
-    .then(reg => askAppVersion(reg.active))
-    .catch(() => {});
+  // Reintenta varias veces: cubre la primera visita y el caso de un SW antiguo
+  // (sin GET_VERSION) que aún controla la página mientras el nuevo se instala.
+  const retryAsk = () => { if (!versionGot) askAllWorkers(); };
+  [0, 1200, 2600, 4200].forEach(ms => setTimeout(retryAsk, ms));
 
   // Cuando un SW nuevo toma el control (actualización), vuelve a preguntar
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    askAppVersion(navigator.serviceWorker.controller);
-  });
+  navigator.serviceWorker.addEventListener('controllerchange', askAllWorkers);
 }
 
-// Si a los 4 s no ha respondido el SW (p. ej. sin SW disponible), deja el chip neutro
+// Estado de error visible si el SW no responde, indicando la causa más probable
 setTimeout(() => {
-  if (!versionSettled) {
-    versionChip.title = 'Versión no disponible: el Service Worker no está activo';
+  if (!versionGot) {
+    versionChip.classList.add('unavailable');
+    versionText.textContent = 'v?';
+    let why;
+    if (location.protocol === 'file:') {
+      why = 'Estás abriendo el archivo con file:// — el Service Worker requiere servir la app por http(s).';
+    } else if (!window.isSecureContext) {
+      why = 'Contexto no seguro (http): el Service Worker requiere https o localhost.';
+    } else {
+      why = 'El Service Worker no respondió: recarga la página (puede estar actualizándose aún) y revisa que sw.js esté desplegado junto a index.html.';
+    }
+    versionChip.title = 'Versión no disponible. ' + why;
   }
-}, 4000);
+}, 4800);
 </script>
 </body>
 </html>
