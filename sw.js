@@ -1,7 +1,12 @@
 /* Service Worker — Distancia Media Monte Carlo PWA
  * Strategy: Cache-first for app shell, network-first for Google Fonts */
 
-const CACHE_NAME = 'distmc-v2';
+/* Versión de la app — única fuente de verdad para el chip de versión de index.html.
+ * Al actualizarla cambia también el nombre de caché, forzando la renovación
+ * del app shell en los clientes. */
+const APP_VERSION = '2.0.0';
+
+const CACHE_NAME = 'distmc-' + APP_VERSION;
 
 const APP_SHELL = [
   './',
@@ -34,6 +39,13 @@ self.addEventListener('activate', (event) => {
       )
     ).then(() => self.clients.claim())
   );
+});
+
+/* ── Message: responde con la versión de la app ────────── */
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'GET_VERSION') {
+    event.source.postMessage({ type: 'VERSION', version: APP_VERSION });
+  }
 });
 
 /* ── Fetch ─────────────────────────────────────────────── */
@@ -91,4 +103,4 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Everything else → network only (no opaque caching)
-});
+});
