@@ -52,10 +52,44 @@
   header h1 {
     font-family: var(--serif);
     font-weight: 700;
-    font-size: 1.3rem;
+    font-size: 1.7rem;
     letter-spacing: -.02em;
     line-height: 1.15;
   }
+  .title-row {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    flex-wrap: wrap;
+  }
+
+  /* ─── Chip de versión (obtenida del Service Worker) ─── */
+  .version-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-family: var(--mono);
+    font-size: .72rem;
+    font-weight: 500;
+    letter-spacing: .06em;
+    padding: .26rem .68rem;
+    border: 1.5px solid var(--ink);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink);
+    white-space: nowrap;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: border-color .2s, color .2s;
+  }
+  .version-chip .v-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--gold);
+    flex-shrink: 0;
+    transition: background .3s;
+  }
+  .version-chip.ready .v-dot { background: var(--green); }
   header .subtitle {
     font-size: .7rem;
     color: #888;
@@ -506,7 +540,9 @@
 
   @media (max-width: 420px) {
     header { padding: .6rem 1rem .5rem; }
-    header h1 { font-size: 1.1rem; }
+    header h1 { font-size: 1.3rem; }
+    .version-chip { font-size: .64rem; padding: .2rem .55rem; gap: .3rem; }
+    .title-row { gap: .5rem; }
     .acc-header { padding: .6rem .85rem; gap: .5rem; }
     .acc-name { font-size: .92rem; }
     .acc-formula { font-size: .72rem; }
@@ -557,7 +593,13 @@
 <header>
   <div>
     <div class="subtitle">Simulación Monte Carlo</div>
-    <h1>Distancia media entre puntos aleatorios</h1>
+    <div class="title-row">
+      <h1>Distancia media entre puntos aleatorios</h1>
+      <span class="version-chip" id="versionChip" title="Versión de la aplicación (obtenida del Service Worker)">
+        <span class="v-dot" aria-hidden="true"></span>
+        <span id="versionText">v—</span>
+      </span>
+    </div>
   </div>
 </header>
 
@@ -1397,15 +1439,56 @@ function exportPDF() {
 }
 
 /* ═════════════════════════════════════════════════════
-   Service Worker
+   Service Worker + chip de versión
    ═════════════════════════════════════════════════════ */
+const versionChip = document.getElementById('versionChip');
+const versionText = document.getElementById('versionText');
+let versionSettled = false;
+
+function setAppVersion(v) {
+  if (versionSettled) return;
+  versionSettled = true;
+  versionText.textContent = 'v' + v;
+  versionChip.classList.add('ready');
+  versionChip.title = 'Versión de la aplicación (Service Worker): v' + v;
+}
+
+function askAppVersion(sw) {
+  if (sw) { try { sw.postMessage({ type: 'GET_VERSION' }); } catch (e) { /* noop */ } }
+}
+
 if ('serviceWorker' in navigator) {
+  // Respuesta del SW con la versión de la app
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'VERSION') setAppVersion(e.data.version);
+  });
+
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
       .then(reg => console.log('SW registrado:', reg.scope))
       .catch(err => console.error('Error SW:', err));
   });
+
+  // Si ya hay un SW controlando la página, pídele la versión directamente
+  if (navigator.serviceWorker.controller) askAppVersion(navigator.serviceWorker.controller);
+
+  // En cuanto el SW esté activo (primera visita), solicítale la versión
+  navigator.serviceWorker.ready
+    .then(reg => askAppVersion(reg.active))
+    .catch(() => {});
+
+  // Cuando un SW nuevo toma el control (actualización), vuelve a preguntar
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    askAppVersion(navigator.serviceWorker.controller);
+  });
 }
+
+// Si a los 4 s no ha respondido el SW (p. ej. sin SW disponible), deja el chip neutro
+setTimeout(() => {
+  if (!versionSettled) {
+    versionChip.title = 'Versión no disponible: el Service Worker no está activo';
+  }
+}, 4000);
 </script>
 </body>
-</html>
+</html>
