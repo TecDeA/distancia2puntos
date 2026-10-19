@@ -4,7 +4,7 @@
 /* Versión de la app — única fuente de verdad para el chip de versión de index.html.
  * Al actualizarla cambia también el nombre de caché, forzando la renovación
  * del app shell en los clientes. */
-const APP_VERSION = '2.0.4';
+const APP_VERSION = '2.0.5';
 
 const CACHE_NAME = 'distmc-' + APP_VERSION;
 
@@ -39,7 +39,9 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => k !== CACHE_NAME && k !== FONT_CACHE)
+          // Filtrar por prefijo propio: caches.keys() es global al origen y
+          // sin este filtro se borraban las cachés del portal y demás apps.
+          .filter((k) => k.startsWith('distmc-') && k !== CACHE_NAME && k !== FONT_CACHE)
           .map((k) => caches.delete(k))
       )
     ).then(() => self.clients.claim())
